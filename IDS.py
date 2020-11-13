@@ -26,16 +26,15 @@ etc
 """
 
 
-def is_goal(state):
+def is_goal(grid):
     """Check if the solution state has been found.
 
-    All tiles must be in numerical order with the blank tile (0) in the bottom right corner of the grid. This code
-    works no matter the size of the grid used.
+    To be considered complete, all tiles must be in numerical order with the blank tile (0) in the bottom right
+    corner of the grid. This code works no matter the size of the grid used.
 
-    :param state: Current state of the puzzle to check
-    :return: Boolean, true if the solution has been found.
+    :param grid: Current state of the puzzle grid
+    :return:     Boolean, true if the solution has been found.
     """
-    grid = state[2]
     n = len(grid)  # find the length of one side of the grid
     prev_tile = 0
     for row in grid:
@@ -94,13 +93,13 @@ def dls_rec(path, limit):
     total_calls = 0
 
     if limit == 0:
-        if is_goal(path[-1]):
+        if is_goal(path[-1][2]):  # pass the grid of the last state in the path
             moves = len(path) - 1  # don't count the initial state as a move
             return [moves, total_calls, False]
         else:
             return [None, total_calls, True]  # we didn't find a solution yet but there are child nodes to discover
     else:
-        cutoff = False  # this is true if there are child nodes but we can't reach them
+        cutoff = False  # this is true if there are child nodes but we can't reach them at the current depth
         last_state = copy.deepcopy(path[-1])
         for nextState in move(last_state):
             total_calls += 1
