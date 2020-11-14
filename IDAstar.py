@@ -10,7 +10,8 @@ Desc.   : An algorithm which solves the (3 x 3) 8-Tile problem by utilising an I
 History : 13/10/2020 - v1.0 - Create project file.
           13/11/2020 - v1.1 - Create placeholder functions and finish estimate_distance
 """
-
+import copy
+import sys
 import time
 
 __author__ = "Martin Siddons"
@@ -24,17 +25,19 @@ etc
 """
 
 
-def is_goal(grid):
+def is_goal(state):
     """Check if the solution state has been found.
 
     All tiles must be in numerical order with the blank tile (0) in the bottom right corner of the grid. This code
     works no matter the size of the grid used.
 
-    :param grid: Current state of the puzzle grid
-    :return:     Boolean, true if the solution has been found.
+    :param state: Current state of the puzzle
+    :return:      Boolean, true if the solution has been found.
     """
+    grid = state[2]
     n = len(grid)  # find the length of one side of the grid
     prev_tile = 0
+
     for row in grid:
         for tile in row:
             if tile != prev_tile + 1:  # Check if tiles are in order. The last tile fails this check as it is '0'
@@ -44,23 +47,27 @@ def is_goal(grid):
     return True
 
 
-def estimate_distance(grid):
-    """Find the sum of the manhattan distances of all tiles from the current state to the goal state.
+def estimate_distance(state):
+    """Find the distance of all tiles on the grid to their expected positions
 
-    :param grid: Current state of the puzzle grid.
-    :return:     Int, sum of manhattan distances for all tiles.
+    This finds the sum of the manhattan distances of all tiles from the current state to the goal state. The
+    algorithm works no matter the size of the grid used.
+
+    :param state: Current state of the puzzle.
+    :return:      Int, sum of manhattan distances for all tiles on the grid.
     """
+    grid = state[2]
+    n = len(grid)  # find the length of one side of the grid
     distance = 0
-    # [[0, 7, 1], [4, 3, 2], [8, 6, 5]]
 
-    for i in range(3):
-        for j in range(3):
+    for i in range(n):
+        for j in range(n):
             cur_tile = grid[i][j]
             if cur_tile == 0:
                 continue  # skip the empty tile as its distance is inconsequential
             else:
-                goal_i = int((cur_tile - 1) / 3)  # the column number of the target destination
-                goal_j = (cur_tile - 1) % 3       # the row number of the target destination
+                goal_i = int((cur_tile - 1) / n)  # the row number of the target destination
+                goal_j = (cur_tile - 1) % n       # the column number of the target destination
                 distance_i = abs(i - goal_i)      # the absolute vertical distance from current tile to the target
                 distance_j = abs(j - goal_j)      # the absolute horizontal distance from current tile to the target
                 distance += distance_i + distance_j
@@ -104,28 +111,67 @@ def move(state):
         grid[i][j], grid[i1][j1] = grid[i1][j1], grid[i][j]  # reset state for next blank movement
 
 
-def dls_rec(path, limit):
-    """Depth Limited Search called recursively to a given depth.
+def search(path, cost, bound):
+    """Find the best game state to expand to from the current state.
 
-    :param path:  List of all states from the initial state to the current state
-    :param limit: Depth to iterate down to
-    :return:      List containing the number of moves from start state to finish state, the total number of calls
-    made to move() and a flag for if there are any remaining nodes.
+    Uses A* to check all child nodes from the current path and return the smallest value where the value is the sum
+    of the distance travelled so far and the estimated distance to the goal.
+    
+    :param path:  The list of nodes travelled from the root to the current node.
+    :param cost:  The distance travelled to this node (the number of moves to get to this point).
+    :param bound: The estimation of the distance from this node to the goal.
+    :return:      An array of the lowest f-value found (or 0 if found, or None if not found) and the number of calls.
     """
-    return None
+    total_calls = 0
+    last_state = copy.deepcopy(path[-1])
+    total_distance = cost + estimate_distance(last_state)
+
+    if total_distance > bound:
+        return [total_distance, 0, total_calls]  # since the total distance is too large, update the f_min.
+    if is_goal(last_state):
+        moves = len(path) - 1  # don't count the initial state as a move
+        return [0, moves, total_calls]  # '0' sent for f_min to indicate goal has been found
+
+    f_min = sys.maxsize  # variable for the smallest f-value
+    for nextState in move(last_state):
+        total_calls += 1
+        if nextState not in path:
+            next_path = path + [nextState]
+            result, moves, calls = search(next_path, cost + 1, bound)
+            total_calls += calls
+
+            if result == 0:
+                return [0, moves, total_calls]  # unwinding recursion as solution was found
+            if result < f_min:
+                f_min = result  # solution not found but the distance is closer, update it
+
+    return [f_min, None, total_calls]
 
 
-def idastar_rec(path):
-    """Depth First Search of given state with Iterative Deepening.
+def ida_star(state):
+    """Performs Iterative Deepening on an A* search from root state to goal state.
 
-    Sets up iterative deepening on the depth limited search algorithm to discover the shortest path to the solution
-    without exceeding the size of the recursive stack.
+    Discovers the shortest path to the solution without exceeding the size of the recursive stack.
 
-    :param path: Initial state of puzzle to solve.
-    :return:     List containing the number of moves taken to solve and the total number of calls made to the move
+    :param state: List containing the initial state of puzzle to solve.
+    :return:      List containing the number of moves taken to solve and the total number of calls made to the move
     procedure.
     """
-    return None
+
+    bound = estimate_distance(state)  # initial depth to expand to is equal to the minimum distance to find the goal
+    total_calls = 0
+    path = [state]
+
+    while True:
+        f_min, moves, calls = search(path, 0, bound)
+        total_calls += calls
+
+        if f_min == 0:  # path found
+            return [moves, total_calls]
+        if f_min is sys.maxsize:  # no path found
+            return None
+
+        bound = f_min  # increase the depth to be equal to the closest node to the goal
 
 
 def main():
@@ -139,13 +185,22 @@ def main():
     states_list = [
                     (0, 0, [[0, 7, 1], [4, 3, 2], [8, 6, 5]]),
                     (0, 2, [[5, 6, 0], [1, 3, 8], [4, 7, 2]]),
+                    (2, 0, [[3, 5, 6], [1, 2, 7], [0, 8, 4]]),
+                    (1, 1, [[7, 3, 5], [4, 0, 2], [8, 1, 6]]),
+                    (2, 0, [[6, 4, 8], [7, 1, 3], [0, 2, 5]]),
+                    (0, 2, [[3, 2, 0], [6, 1, 8], [4, 7, 5]]),
+                    (0, 0, [[0, 1, 8], [3, 6, 7], [5, 4, 2]]),
+                    (2, 0, [[6, 4, 1], [7, 3, 2], [0, 5, 8]]),
+                    (0, 0, [[0, 7, 1], [5, 4, 8], [6, 2, 3]]),
+                    (0, 2, [[5, 4, 0], [2, 3, 1], [8, 7, 6]]),
+                    (2, 1, [[8, 6, 7], [2, 5, 4], [3, 0, 1]]),
                     (1, 0, [[1, 2, 3], [0, 5, 6], [4, 7, 8]])
                     ]
 
     for i, state in enumerate(states_list):
         print("Instance {}:".format(i + 1), end=' ')
         start_time = time.perf_counter()
-        solution = idastar_rec([state])
+        solution = ida_star(state)
         end_time = time.perf_counter()
         total_time = end_time - start_time
 

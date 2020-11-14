@@ -26,17 +26,19 @@ etc
 """
 
 
-def is_goal(grid):
+def is_goal(state):
     """Check if the solution state has been found.
 
     To be considered complete, all tiles must be in numerical order with the blank tile (0) in the bottom right
     corner of the grid. This code works no matter the size of the grid used.
 
-    :param grid: Current state of the puzzle grid
-    :return:     Boolean, true if the solution has been found.
+    :param state: Current state of the puzzle
+    :return:      Boolean, true if the solution has been found.
     """
+    grid = state[2]
     n = len(grid)  # find the length of one side of the grid
     prev_tile = 0
+
     for row in grid:
         for tile in row:
             if tile != prev_tile + 1:  # Check if tiles are in order. The last tile fails this check as it is '0'
@@ -93,7 +95,7 @@ def dls_rec(path, limit):
     total_calls = 0
 
     if limit == 0:
-        if is_goal(path[-1][2]):  # pass the grid of the last state in the path
+        if is_goal(path[-1]):  # pass the last state in the path
             moves = len(path) - 1  # don't count the initial state as a move
             return [moves, total_calls, False]
         else:
@@ -116,13 +118,13 @@ def dls_rec(path, limit):
         return [None, total_calls, cutoff]  # we didn't find a solution here, report if there are child nodes left
 
 
-def iddfs_rec(path):
+def iddfs_rec(root):
     """Depth First Search of given state with Iterative Deepening.
 
     Sets up iterative deepening on the depth limited search algorithm to discover the shortest path to the solution
     without exceeding the size of the recursive stack.
 
-    :param path: Initial state of puzzle to solve.
+    :param root: Initial state of puzzle to solve.
     :return:     List containing the number of moves taken to solve and the total number of calls made to the move
     procedure.
     """
@@ -130,7 +132,7 @@ def iddfs_rec(path):
     limit = 0
 
     while True:
-        moves, calls, remaining_moves = dls_rec(path, limit)
+        moves, calls, remaining_moves = dls_rec(root, limit)
         total_calls += calls
 
         if moves is not None:
