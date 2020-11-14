@@ -8,7 +8,8 @@ File    : IDS.py
 Date    : Tuesday 13 October 2020
 Desc.   : An algorithm which solves the (3 x 3) 8-Tile problem by utilising an Iterative Deepening A* approach.
 History : 13/10/2020 - v1.0 - Create project file.
-          13/11/2020 - v1.1 - Create placeholder functions and finish estimate_distance
+          13/11/2020 - v1.1 - Create placeholder functions and finish estimate_distance.
+          14/11/2020 - v1.2 - Tweaked how data is passed between functions, finished search(), ida_star(). Working.
 """
 import copy
 import sys
@@ -18,10 +19,17 @@ __author__ = "Martin Siddons"
 
 """
 Results:
-Instance 1:
-16 moves, 263 calls in 1.000 seconds
-
-etc
+Instance 1: 16 moves, 263 calls in 0.005 seconds
+Instance 2: 18 moves, 1056 calls in 0.012 seconds
+Instance 3: 20 moves, 721 calls in 0.011 seconds
+Instance 4: 18 moves, 1310 calls in 0.014 seconds
+Instance 5: 18 moves, 360 calls in 0.004 seconds
+Instance 6: 18 moves, 538 calls in 0.006 seconds
+Instance 7: 20 moves, 218 calls in 0.002 seconds
+Instance 8: 14 moves, 50 calls in 0.001 seconds
+Instance 9: 24 moves, 3176 calls in 0.034 seconds
+Instance 10: 22 moves, 4265 calls in 0.057 seconds
+Instance 11: 31 moves, 43432 calls in 0.548 seconds
 """
 
 
@@ -48,7 +56,7 @@ def is_goal(state):
 
 
 def estimate_distance(state):
-    """Find the distance of all tiles on the grid to their expected positions
+    """Find the distance of all tiles on the grid from their expected positions
 
     This finds the sum of the manhattan distances of all tiles from the current state to the goal state. The
     algorithm works no matter the size of the grid used.
@@ -122,56 +130,54 @@ def search(path, cost, bound):
     :param bound: The estimation of the distance from this node to the goal.
     :return:      An array of the lowest f-value found (or 0 if found, or None if not found) and the number of calls.
     """
-    total_calls = 0
-    last_state = copy.deepcopy(path[-1])
-    total_distance = cost + estimate_distance(last_state)
+    cumulative_calls = 0  # the calls made to move() during this recursion plus the calls made in deeper recursions
+    cur_state = copy.deepcopy(path[-1])
+    total_distance = cost + estimate_distance(cur_state)  # f-value for current state
 
     if total_distance > bound:
-        return [total_distance, 0, total_calls]  # since the total distance is too large, update the f_min.
-    if is_goal(last_state):
+        return [total_distance, 0, cumulative_calls]  # since the total distance is too large, update the f_min.
+    if is_goal(cur_state):
         moves = len(path) - 1  # don't count the initial state as a move
-        return [0, moves, total_calls]  # '0' sent for f_min to indicate goal has been found
+        return [0, moves, cumulative_calls]  # '0' sent for f_min to indicate goal has been found
 
     f_min = sys.maxsize  # variable for the smallest f-value
-    for nextState in move(last_state):
-        total_calls += 1
+    for nextState in move(cur_state):
+        cumulative_calls += 1
         if nextState not in path:
-            next_path = path + [nextState]
-            result, moves, calls = search(next_path, cost + 1, bound)
-            total_calls += calls
+            next_path = path + [nextState]  # add the new state to the list of states generated.
+            result, moves, calls = search(next_path, cost + 1, bound)  # g-value can only get one closer per iteration
+            cumulative_calls += calls
 
             if result == 0:
-                return [0, moves, total_calls]  # unwinding recursion as solution was found
+                return [0, moves, cumulative_calls]  # unwinding recursion as solution was found
             if result < f_min:
                 f_min = result  # solution not found but the distance is closer, update it
 
-    return [f_min, None, total_calls]
+    return [f_min, None, cumulative_calls]
 
 
-def ida_star(state):
+def ida_star(root):
     """Performs Iterative Deepening on an A* search from root state to goal state.
 
     Discovers the shortest path to the solution without exceeding the size of the recursive stack.
 
-    :param state: List containing the initial state of puzzle to solve.
-    :return:      List containing the number of moves taken to solve and the total number of calls made to the move
+    :param root: List containing the initial state of puzzle to solve.
+    :return:     List containing the number of moves taken to solve and the total number of calls made to the move
     procedure.
     """
-
-    bound = estimate_distance(state)  # initial depth to expand to is equal to the minimum distance to find the goal
+    bound = estimate_distance(root)  # initial distance to travel is equal to the minimum distance to find the goal
     total_calls = 0
-    path = [state]
 
     while True:
-        f_min, moves, calls = search(path, 0, bound)
+        f_min, moves, calls = search([root], 0, bound)
         total_calls += calls
 
-        if f_min == 0:  # path found
+        if f_min == 0:  # we found the path, send back the moves and calls
             return [moves, total_calls]
         if f_min is sys.maxsize:  # no path found
             return None
 
-        bound = f_min  # increase the depth to be equal to the closest node to the goal
+        bound = f_min  # increase the distance we're willing to travel to the goal
 
 
 def main():
@@ -183,18 +189,17 @@ def main():
     algorithm to be processed.
     """
     states_list = [
-                    (0, 0, [[0, 7, 1], [4, 3, 2], [8, 6, 5]]),
-                    (0, 2, [[5, 6, 0], [1, 3, 8], [4, 7, 2]]),
-                    (2, 0, [[3, 5, 6], [1, 2, 7], [0, 8, 4]]),
-                    (1, 1, [[7, 3, 5], [4, 0, 2], [8, 1, 6]]),
-                    (2, 0, [[6, 4, 8], [7, 1, 3], [0, 2, 5]]),
-                    (0, 2, [[3, 2, 0], [6, 1, 8], [4, 7, 5]]),
-                    (0, 0, [[0, 1, 8], [3, 6, 7], [5, 4, 2]]),
-                    (2, 0, [[6, 4, 1], [7, 3, 2], [0, 5, 8]]),
-                    (0, 0, [[0, 7, 1], [5, 4, 8], [6, 2, 3]]),
-                    (0, 2, [[5, 4, 0], [2, 3, 1], [8, 7, 6]]),
-                    (2, 1, [[8, 6, 7], [2, 5, 4], [3, 0, 1]]),
-                    (1, 0, [[1, 2, 3], [0, 5, 6], [4, 7, 8]])
+                    [0, 0, [[0, 7, 1], [4, 3, 2], [8, 6, 5]]],
+                    [0, 2, [[5, 6, 0], [1, 3, 8], [4, 7, 2]]],
+                    [2, 0, [[3, 5, 6], [1, 2, 7], [0, 8, 4]]],
+                    [1, 1, [[7, 3, 5], [4, 0, 2], [8, 1, 6]]],
+                    [2, 0, [[6, 4, 8], [7, 1, 3], [0, 2, 5]]],
+                    [0, 2, [[3, 2, 0], [6, 1, 8], [4, 7, 5]]],
+                    [0, 0, [[0, 1, 8], [3, 6, 7], [5, 4, 2]]],
+                    [2, 0, [[6, 4, 1], [7, 3, 2], [0, 5, 8]]],
+                    [0, 0, [[0, 7, 1], [5, 4, 8], [6, 2, 3]]],
+                    [0, 2, [[5, 4, 0], [2, 3, 1], [8, 7, 6]]],
+                    [2, 1, [[8, 6, 7], [2, 5, 4], [3, 0, 1]]]
                     ]
 
     for i, state in enumerate(states_list):
@@ -209,6 +214,7 @@ def main():
         else:
             print("{} moves, {} calls in {:0.3f} seconds".format(
                 solution[0], solution[1], total_time))
+
 
 # estimate_distance test
 # print(estimate_distance([[0, 7, 1], [4, 3, 2], [8, 6, 5]]))  # should give '14'
